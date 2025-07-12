@@ -2,8 +2,8 @@ name: CI/CD  Docker  Telegram Bot
 
 on:
   push:
-    branches: [ main ]     # ▶️ запуск при любом push в main
-  workflow_dispatch:       # ▶️ и вручную по кнопке “Run workflow”
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -13,28 +13,30 @@ jobs:
       REMOTE_DIR: /home/RecipeApp/RecipeApp/ACTUAL__Build_compose
 
     steps:
-      # 0. Забираем код
       - uses: actions/checkout@v3
 
-      # 1. (Опц.) Линтеры/тесты
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
       - name: Run flake8 & pytest
         run: |
           pip install flake8 pytest
           flake8 || echo "flake8 warnings"
           pytest -q || echo "tests failed but continue"
 
-      # 2. Копируем проект на сервер
       - name: Copy project to server via rsync
         env:
           SSH_KEY: ${{ secrets.SSH_KEY }}
         run: |
           echo "$SSH_KEY" > key.pem && chmod 600 key.pem
-          rsync -az --delete \
+          rsync -az --delete --progress \
                 -e "ssh -o StrictHostKeyChecking=no -i key.pem" \
                 ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:${{ env.REMOTE_DIR }}/
+          rm -f key.pem
 
-      # 3. Пересобираем и перезапускаем контейнеры
-      - name: Rebuild & restart docker‑compose on server
+      - name: Rebuild & restart docker-compose on server
         env:
           SSH_KEY: ${{ secrets.SSH_KEY }}
         run: |
@@ -42,8 +44,9 @@ jobs:
           ssh -o StrictHostKeyChecking=no -i key.pem \
               ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
                 cd $REMOTE_DIR
-                docker-compose pull          # на случай, если base images обновились
+                docker-compose pull
                 docker-compose down
                 docker-compose up -d --build
-                docker image prune -f        # очистка dangling images
+                docker image prune -f
           EOF
+          rm -f key.pem

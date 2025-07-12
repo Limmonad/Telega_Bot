@@ -58,6 +58,7 @@ CUISINE_OPTIONS = ["Итальянская", "Русская", "Французс
 MEAL_OPTIONS = ["Завтрак", "Обед", "Ужин", "Перекус", "Другое"]
 
 
+
 @dp.message(Command("start"), StateFilter("*"))
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
