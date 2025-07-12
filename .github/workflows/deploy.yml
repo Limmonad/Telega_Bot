@@ -17,23 +17,25 @@ jobs:
       REMOTE_DIR: /home/RecipeApp/RecipeApp/ACTUAL__Build_compose
 
     steps:
+      # ────────── 1. Исходники ──────────
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # ────────── 2. Линтеры и тесты ──────────
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
       - name: Install lint/test tools
-        run: |
-          pip install flake8 pytest
+        run: pip install flake8 pytest
 
       - name: Lint & Test (won’t fail build)
         run: |
           flake8 || echo "flake8 warnings"
           pytest -q || echo "tests failed but continue"
 
+      # ────────── 3. Синхронизация кода ──────────
       - name: Sync TelegramBot code to server
         env:
           SSH_KEY: ${{ secrets.SSH_KEY }}
@@ -41,6 +43,7 @@ jobs:
           echo "$SSH_KEY" > key.pem && chmod 600 key.pem
 
           rsync -az --progress \
+                -e "ssh -o StrictHostKeyChecking=no -i key.pem" \   # ← фикс! добавили -e
                 --relative \
                 --delete \
                 --include 'TelegramBot/' \
@@ -52,6 +55,7 @@ jobs:
 
           rm -f key.pem
 
+      # ────────── 4. Перезапуск стэка ──────────
       - name: Rebuild Docker stack (telegram_bot + recipe_app)
         env:
           SSH_KEY: ${{ secrets.SSH_KEY }}
