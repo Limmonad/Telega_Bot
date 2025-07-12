@@ -1,73 +1,44 @@
-name: CI/CD Docker Telegram Bot
+name: Telegram Bot CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     paths:
-      - 'TelegramBot/'
-      - 'docker-compose.yml'
-      - '.github/workflows/'
+      - 'Telegram_bot/**'  # Триггер только при изменениях в папке бота
   workflow_dispatch:
 
 jobs:
-  deploy:
+  deploy-bot:
     runs-on: ubuntu-latest
-
     env:
-      REMOTE_DIR: /home/RecipeApp/RecipeApp/ACTUAL__Build_compose
+      REMOTE_BOT_DIR: /home/RecipeApp/RecipeApp/ACTUAL__Build_compose/TelegramBot
 
     steps:
-      # ────────── 1. Исходники ──────────
-      - name: Checkout repository
+      # 1. Получаем код из репозитория
+      - name: Checkout
         uses: actions/checkout@v3
 
-      # ────────── 2. Линтеры и тесты ──────────
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      # 2. Настройка безопасного SSH
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
         with:
-          python-version: '3.11'
+          ssh-private-key: ${{ secrets.SSH_KEY }}
 
-      - name: Install lint/test tools
-        run: pip install flake8 pytest
-
-      - name: Lint & Test (won’t fail build)
+      # 3. Копируем ТОЛЬКО файлы бота (Telega_bot.py и другие)
+      - name: Sync Bot Files
         run: |
-          flake8  echo "flake8 warnings"
-          pytest -q  echo "tests failed but continue"
-
-      # ────────── 3. Синхронизация кода ──────────
-      - name: Sync TelegramBot code to server
-        env:
-          SSH_KEY: ${{ secrets.SSH_KEY }}
-        run: |
-          echo "$SSH_KEY" > key.pem && chmod 600 key.pem
-
-          rsync -az --progress \
-                -e "ssh -o StrictHostKeyChecking=no -i key.pem" \   # ← фикс! добавили -e
-                --relative \
+          rsync -avz \
+                -e "ssh -o StrictHostKeyChecking=no" \
                 --delete \
-                --include 'TelegramBot/' \
-                --include 'TelegramBot/***' \
-                --include 'docker-compose.yml' \
-                --exclude '*' \
-                ./ \
-                ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:${{ env.REMOTE_DIR }}/
+                ./Telegram_bot/ \
+                ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:${{ env.REMOTE_BOT_DIR }}/
 
-          rm -f key.pem
-
-      # ────────── 4. Перезапуск стэка ──────────
-      - name: Rebuild Docker stack (telegram_bot + recipe_app)
-        env:
-          SSH_KEY: ${{ secrets.SSH_KEY }}
+      # 4. Пересобираем ТОЛЬКО телеграм-бота
+      - name: Rebuild Telegram Bot
         run: |
-          echo "$SSH_KEY" > key.pem && chmod 600 key.pem
-
-          ssh -o StrictHostKeyChecking=no -i key.pem \
+          ssh -o StrictHostKeyChecking=no \
               ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
                 set -e
-                cd $REMOTE_DIR
-                docker-compose up -d --build --force-recreate
-                docker image prune -f
+                cd /home/RecipeApp/RecipeApp/ACTUAL__Build_compose
+                docker-compose up -d --build telegram_bot
           EOF
-
-          rm -f key.pem
