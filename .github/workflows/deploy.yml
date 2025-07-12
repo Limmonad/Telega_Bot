@@ -4,41 +4,48 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Telegram_bot/**'  # Триггер только при изменениях в папке бота
+      - 'Telegram_bot/**'  # Триггер при изменении файлов бота
   workflow_dispatch:
 
 jobs:
   deploy-bot:
     runs-on: ubuntu-latest
     env:
-      REMOTE_BOT_DIR: /home/RecipeApp/RecipeApp/ACTUAL__Build_compose/TelegramBot
+      REMOTE_DIR: /home/RecipeApp/RecipeApp/ACTUAL__Build_compose/TelegramBot
 
     steps:
-      # 1. Получаем код из репозитория
+      # 1. Получаем код
       - name: Checkout
         uses: actions/checkout@v3
 
-      # 2. Настройка безопасного SSH
+      # 2. Проверка структуры (для отладки)
+      - name: Debug structure
+        run: |
+          echo "Содержимое репозитория:"
+          ls -R
+          echo "Содержимое папки бота:"
+          ls -la Telegram_bot/
+
+      # 3. Настройка SSH
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.7.0
         with:
           ssh-private-key: ${{ secrets.SSH_KEY }}
 
-      # 3. Копируем ТОЛЬКО файлы бота (Telega_bot.py и другие)
+      # 4. Копируем файлы бота
       - name: Sync Bot Files
         run: |
           rsync -avz \
                 -e "ssh -o StrictHostKeyChecking=no" \
                 --delete \
                 ./Telegram_bot/ \
-                ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:${{ env.REMOTE_BOT_DIR }}/
+                ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:${{ env.REMOTE_DIR }}/
 
-      # 4. Пересобираем ТОЛЬКО телеграм-бота
-      - name: Rebuild Telegram Bot
+      # 5. Пересобираем бота
+      - name: Rebuild Bot
         run: |
           ssh -o StrictHostKeyChecking=no \
               ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
-                set -e
                 cd /home/RecipeApp/RecipeApp/ACTUAL__Build_compose
                 docker-compose up -d --build telegram_bot
           EOF
