@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Telegram_bot/**'  # Триггер при изменении файлов бота
+      - 'Telega_bot.py'  # Триггер при изменении основного файла
+      - 'TelegramBotRecipe.json'
   workflow_dispatch:
 
 jobs:
@@ -18,13 +19,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      # 2. Проверка структуры (для отладки)
-      - name: Debug structure
+      # 2. Проверка файлов
+      - name: Verify files
         run: |
-          echo "Содержимое репозитория:"
-          ls -R
-          echo "Содержимое папки бота:"
-          ls -la Telegram_bot/
+          echo "Файлы в репозитории:"
+          ls -la
+          [ -f Telega_bot.py ] || { echo "ERROR: Telega_bot.py not found!"; exit 1; }
 
       # 3. Настройка SSH
       - name: Setup SSH
@@ -32,13 +32,13 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_KEY }}
 
-      # 4. Копируем файлы бота
-      - name: Sync Bot Files
+      # 4. Копируем только нужные файлы
+      - name: Sync Files
         run: |
           rsync -avz \
                 -e "ssh -o StrictHostKeyChecking=no" \
-                --delete \
-                ./Telegram_bot/ \
+                Telega_bot.py \
+                TelegramBotRecipe.json \
                 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:${{ env.REMOTE_DIR }}/
 
       # 5. Пересобираем бота
