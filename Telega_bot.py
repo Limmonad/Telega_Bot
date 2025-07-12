@@ -8,6 +8,23 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
 import json
 
+
+BAD_WORDS = {
+    "блядь",
+    "сука",
+    "хуй",
+    "ебать",
+    "пидор",
+    "мразь",
+    "чмо",
+    "залупа",
+}
+
+def has_bad_words(text: str) -> bool:
+    lower_text = text.lower()
+    return any(bad_word in lower_text for bad_word in BAD_WORDS)
+
+
 # Загружаем конфиг
 with open('TelegramBotRecipe.json', 'r') as f:
     config = json.load(f)
@@ -135,9 +152,16 @@ async def process_search(message: types.Message, state: FSMContext):
 
 @dp.message(StateFilter(RecipeForm.title))
 async def process_title(message: types.Message, state: FSMContext):
-    await state.update_data(title=message.text)
-    await message.answer("Введите описание рецепта (или 'нет'):")
+    title = message.text.strip()
+
+    if has_bad_words(title):
+        await message.answer("⚠️ Название содержит неприемлемые слова. Пожалуйста, введите другое название.")
+        return  # остаёмся в том же состоянии для повторного ввода
+
+    await state.update_data(title=title)
+    await message.answer("Название принято! Введите описание рецепта (или 'нет'):")
     await state.set_state(RecipeForm.description)
+
 
 
 @dp.message(StateFilter(RecipeForm.description))
