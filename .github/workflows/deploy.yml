@@ -1,8 +1,12 @@
-name: CI/CD  Docker  Telegram Bot
+name: CI/CD Docker Telegram Bot
 
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'TelegramBot/'
+      - 'docker-compose.yml'
+      - '.github/workflows/'
   workflow_dispatch:
 
 jobs:
@@ -13,40 +17,57 @@ jobs:
       REMOTE_DIR: /home/RecipeApp/RecipeApp/ACTUAL__Build_compose
 
     steps:
-      - uses: actions/checkout@v3
+      # ────────── 1. Исходники ──────────
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
+      # ────────── 2. Линтеры и тесты ──────────
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      - name: Run flake8 & pytest
+      - name: Install lint/test tools
+        run: pip install flake8 pytest
+
+      - name: Lint & Test (won’t fail build)
         run: |
-          pip install flake8 pytest
           flake8  echo "flake8 warnings"
           pytest -q  echo "tests failed but continue"
 
-      - name: Copy project to server via rsync
+      # ────────── 3. Синхронизация кода ──────────
+      - name: Sync TelegramBot code to server
         env:
           SSH_KEY: ${{ secrets.SSH_KEY }}
         run: |
           echo "$SSH_KEY" > key.pem && chmod 600 key.pem
-          rsync -az --delete --progress \
-                -e "ssh -o StrictHostKeyChecking=no -i key.pem" \
-                ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:${{ env.REMOTE_DIR }}/
+
+          rsync -az --progress \
+                -e "ssh -o StrictHostKeyChecking=no -i key.pem" \   # ← фикс! добавили -e
+                --relative \
+                --delete \
+                --include 'TelegramBot/' \
+                --include 'TelegramBot/***' \
+                --include 'docker-compose.yml' \
+                --exclude '*' \
+                ./ \
+                ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:${{ env.REMOTE_DIR }}/
+
           rm -f key.pem
 
-      - name: Rebuild & restart docker-compose on server
+      # ────────── 4. Перезапуск стэка ──────────
+      - name: Rebuild Docker stack (telegram_bot + recipe_app)
         env:
           SSH_KEY: ${{ secrets.SSH_KEY }}
         run: |
           echo "$SSH_KEY" > key.pem && chmod 600 key.pem
+
           ssh -o StrictHostKeyChecking=no -i key.pem \
-              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
+              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+                set -e
                 cd $REMOTE_DIR
-                docker-compose pull
-                docker-compose down
-                docker-compose up -d --build
+                docker-compose up -d --build --force-recreate
                 docker image prune -f
           EOF
+
           rm -f key.pem
