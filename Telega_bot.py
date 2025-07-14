@@ -159,7 +159,7 @@ async def process_title(message: types.Message, state: FSMContext):
         return  # остаёмся в том же состоянии для повторного ввода
 
     await state.update_data(title=title)
-    await message.answer("Название принято! Введите описание рецепта (или 'нет'):")
+    await message.answer("Название принято\n Введите описание рецепта (или 'нет'):")
     await state.set_state(RecipeForm.description)
 
 
