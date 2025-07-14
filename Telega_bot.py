@@ -18,6 +18,7 @@ BAD_WORDS = {
     "мразь",
     "чмо",
     "залупа",
+    "уебок",
 }
 
 def has_bad_words(text: str) -> bool:
