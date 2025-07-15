@@ -288,9 +288,9 @@ async def search_by_ingredient_start(message: types.Message, state: FSMContext):
 @dp.message(StateFilter(IngredientSearch.input_ingredient))
 async def process_ingredient_input(message: types.Message, state: FSMContext):
     ingredient = message.text.strip()
-    headers = {"X-API-Key": API_KEY_ALCH}
+    headers = {"X-API-Key": API_KEY}
     try:
-        resp = requests.get(f"{API_URL_ALCH}/recipes/search_by_ingredient", params={"ingredient": ingredient}, headers=headers)
+        resp = requests.get(f"{API_URL_ALCH}/recipes/search_by_ingredient/", params={"ingredient": ingredient}, headers=headers)
         resp.raise_for_status()
         recipes = resp.json()
 

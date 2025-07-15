@@ -48,4 +48,5 @@ jobs:
               ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
                 cd /home/RecipeApp/RecipeApp/ACTUAL__Build_compose
                 docker-compose up -d --build telegram_bot
+                docker image prune -f
           EOF
