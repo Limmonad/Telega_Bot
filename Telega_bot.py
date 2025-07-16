@@ -7,7 +7,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
 import json
-
+import httpx
+from aiogoogletrans import Translator
 
 BAD_WORDS = {
     "блядь",
@@ -20,6 +21,13 @@ BAD_WORDS = {
     "залупа",
     "уебок",
 }
+
+
+translator = Translator()  # Создаём один экземпляр
+
+async def translate(text: str, *, src="en", dest="ru") -> str:
+    translated = await translator.translate(text, src=src, dest=dest)
+    return translated.text
 
 def has_bad_words(text: str) -> bool:
     lower_text = text.lower()
@@ -35,7 +43,8 @@ API_URL_ALCH = config["API_URL_ALCH"]
 TOKEN = config["TOKEN_BOT"]
 API_KEY = config["API_KEY_PROM"]  # 🔑 секретный ключ API
 API_KEY_ALCH = config["API_KEY_TEST"]
-print(API_KEY)
+API_RANDOM_MEALDB = config["API_RANDOM_MEALDB"]
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -65,7 +74,7 @@ main_menu = types.ReplyKeyboardMarkup(
             types.KeyboardButton(text="🔍 Найти рецепт")
         ],
         [
-            types.KeyboardButton(text="🧂 Поиск по ингредиенту")  # новая кнопка
+            types.KeyboardButton(text="🧂 Поиск по ингредиенту из локальной базы данных")  # новая кнопка
         ]
     ],
     resize_keyboard=True
@@ -77,6 +86,96 @@ MEAL_OPTIONS = ["Завтрак", "Обед", "Ужин", "Перекус", "Д�
 
 
 
+@dp.message(Command("random_recipe"), StateFilter("*"))
+async def cmd_random_recipe(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer("🔄 Ищу случайный рецепт...")
+
+    try:
+        # Получение рецепта
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(API_RANDOM_MEALDB, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+
+        meal = data["meals"][0]
+
+        # Основные данные
+        name_en = meal["strMeal"]
+        category_en = meal["strCategory"]
+        cuisine_en = meal["strArea"]
+        instructions_en = meal["strInstructions"]
+
+        # Собираем ингредиенты для перевода
+        ingredients_list = []
+        for i in range(1, 21):
+            ingredient = meal.get(f"strIngredient{i}")
+            if ingredient and ingredient.strip():
+                ingredients_list.append(ingredient)
+
+        # Параллельный перевод всех текстов
+        translations = await asyncio.gather(
+            translate(name_en),
+            translate(category_en),
+            translate(cuisine_en),
+            translate(instructions_en),
+            *[translate(ing) for ing in ingredients_list]
+        )
+
+        # Распаковываем результаты перевода
+        name_ru, category_ru, cuisine_ru, instructions_ru = translations[:4]
+        ingredients_translated = translations[4:4 + len(ingredients_list)]
+
+        # Формируем список ингредиентов с переводами
+        ingredients = []
+        for i in range(len(ingredients_list)):
+            measure = meal.get(f"strMeasure{i + 1}")
+            ingredients.append(
+                f"- {ingredients_translated[i]} ({ingredients_list[i]}): "
+                f"{measure if measure else 'по вкусу'}"
+            )
+
+        # Формируем текст с рецептом
+        result_text = (
+                f"🍽️ <b>{name_ru}</b> ({name_en})\n\n"
+                f"<b>Тип кухни:</b> {cuisine_ru}\n"
+                f"<b>Категория:</b> {category_ru}\n\n"
+                f"<b>Ингредиенты:</b>\n" + "\n".join(ingredients) + "\n\n"
+        )
+
+        # Добавляем инструкцию с ограничением длины
+        max_instructions_length = 300
+        if len(instructions_ru) > max_instructions_length:
+            # Находим последнюю точку перед максимальной длиной
+            last_dot = instructions_ru.rfind('.', 0, max_instructions_length)
+            if last_dot > 0:
+                instructions_part = instructions_ru[:last_dot + 1]
+            else:
+                instructions_part = instructions_ru[:max_instructions_length] + "..."
+
+            result_text += f"<b>Приготовление:</b>\n{instructions_part}\n\n"
+            result_text += "Продолжение в следующем сообщении..."
+        else:
+            result_text += f"<b>Приготовление:</b>\n{instructions_ru}"
+
+        # Отправка сообщения с фото
+        if meal.get("strMealThumb"):
+            await message.answer_photo(
+                photo=meal["strMealThumb"],
+                caption=result_text,
+                parse_mode="HTML"
+            )
+        else:
+            await message.answer(result_text, parse_mode="HTML")
+
+        # Если инструкция была обрезана, отправляем продолжение
+        if len(instructions_ru) > max_instructions_length:
+            remaining_text = instructions_ru[last_dot + 1 if last_dot > 0 else max_instructions_length:]
+            await message.answer(f"<b>Продолжение приготовления:</b>\n{remaining_text}", parse_mode="HTML")
+
+    except Exception as e:
+        logging.error(f"Error in random_recipe: {e}", exc_info=True)
+        await message.answer("⚠️ Не удалось получить рецепт. Попробуйте позже.")
 @dp.message(Command("start"), StateFilter("*"))
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
@@ -94,6 +193,7 @@ async def cmd_help(message: types.Message, state: FSMContext):
         "🍳 Создать рецепт — введи данные пошагово\n"
         "🔍 Найти рецепт — ищи по названию блюда\n"
         "🧂 Поиск по ингредиенту — найди рецепт по одному из ингредиентов\n\n"
+        "В меню слева можно выбрать случайный рецепт\n\n"
         "👇 Используй кнопки ниже для навигации."
     )
     await message.answer(help_text, reply_markup=main_menu)

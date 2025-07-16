@@ -3,7 +3,8 @@
     "TOKEN_BOT": "7226407194:AAF8Nk7F4dzukYO840srbhouAHS0W3yA6SM",
     "API_KEY_TEST": "supersecretkey123",
     "API_KEY_PROM": "mV9eZ7O8TVQjkX7bUNmwkqJ2z7R9YClfB1Jf6qQnxvM=",
-    "API_URL_ALCH": "http://127.0.0.1:8000"
+    "API_URL_ALCH": "http://127.0.0.1:8000",
+    "API_RANDOM_MEALDB": "https://www.themealdb.com/api/json/v1/1/random.php"
 }
 
 
