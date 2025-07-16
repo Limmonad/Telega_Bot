@@ -378,7 +378,7 @@ async def process_ingredients(message: types.Message, state: FSMContext):
     )
 
 
-@dp.message(F.text.lower() == "🧂 поиск по ингредиенту", StateFilter("*"))
+@dp.message(F.text.lower() == "🧂 Поиск по ингредиенту из локальной базы данных", StateFilter("*"))
 async def search_by_ingredient_start(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer("Введите ингредиент для поиска рецептов:")
