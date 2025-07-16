@@ -74,7 +74,7 @@ main_menu = types.ReplyKeyboardMarkup(
             types.KeyboardButton(text="🔍 Найти рецепт")
         ],
         [
-            types.KeyboardButton(text="🧂 Поиск по ингредиенту из локальной базы данных")  # новая кнопка
+            types.KeyboardButton(text="🧂 Поиск по ингредиенту")  # новая кнопка
         ]
     ],
     resize_keyboard=True
@@ -378,7 +378,7 @@ async def process_ingredients(message: types.Message, state: FSMContext):
     )
 
 
-@dp.message(F.text.lower() == "🧂 Поиск по ингредиенту из локальной базы данных", StateFilter("*"))
+@dp.message(F.text.lower() == "🧂 Поиск по ингредиенту", StateFilter("*"))
 async def search_by_ingredient_start(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer("Введите ингредиент для поиска рецептов:")
