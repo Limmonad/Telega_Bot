@@ -70,7 +70,7 @@ class IngredientSearch(StatesGroup):
 main_menu = types.ReplyKeyboardMarkup(
     keyboard=[
         [
-            types.KeyboardButton(text="🍳 Создать рецепт1111"),
+            types.KeyboardButton(text="🍳 Создать рецепт"),
             types.KeyboardButton(text="🔍 Найти рецепт")
         ],
         [
