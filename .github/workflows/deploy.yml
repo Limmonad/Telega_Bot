@@ -7,7 +7,6 @@ on:
       - 'Telega_bot.py'  # Триггер при изменении основного файла
       - 'TelegramBotRecipe.json'
   workflow_dispatch:
-
 jobs:
   deploy-bot:
     runs-on: ubuntu-latest
